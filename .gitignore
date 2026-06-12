@@ -1,0 +1,52 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+/coverage
+
+# ── Next.js build output ──────────────────────────────────────────────────────
+/.next/
+/out/
+/build
+
+# ── Secrets — NEVER commit these ─────────────────────────────────────────────
+# .env.example is safe (placeholder values only, no real keys)
+.env
+.env.*
+!.env.example
+
+# ── OS / Editor artifacts ─────────────────────────────────────────────────────
+.DS_Store
+*.pem
+*.pem.pub
+Thumbs.db
+
+# ── Debug logs ────────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ── Local scripts (not for production) ───────────────────────────────────────
+/scripts
+
+# ── Vercel ────────────────────────────────────────────────────────────────────
+.vercel
+
+# ── TypeScript cache ──────────────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Supabase local dev ────────────────────────────────────────────────────────
+# supabase/.branches and .temp contain local state, not schema
+supabase/.branches
+supabase/.temp

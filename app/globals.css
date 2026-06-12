@@ -1,0 +1,238 @@
+@import "tailwindcss";
+
+/* ── Light theme (default) ─────────────────────── */
+:root {
+  --cream:   #FAF8F4;
+  --cream-2: #F3EFE7;
+  --cream-3: #EAE4D8;
+  --border:  #DDD6C8;
+  --brown-1: #8B7355;
+  --brown-2: #6B5640;
+  --brown-3: #4A3B2C;
+  --text:    #1C1714;
+  --muted:   #9A8E80;
+  --accent:  #A0856C;
+  --surface: #FFFFFF;
+}
+
+/* ── Dark theme ─────────────────────────────────── */
+[data-theme="dark"] {
+  --cream:   #0D0D0F;
+  --cream-2: #161619;
+  --cream-3: #1E1E23;
+  --border:  #2A2A32;
+  --brown-1: #9B8AFF;
+  --brown-2: #7B6CE0;
+  --brown-3: #E8E4FF;
+  --text:    #F0EEF8;
+  --muted:   #6B6880;
+  --accent:  #9B8AFF;
+  --surface: #13131A;
+}
+
+* { box-sizing: border-box; }
+html {
+  scroll-behavior: smooth;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+body {
+  background: var(--cream);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* ── Scrollbar ─────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* ── Surface cards ─────────────────────────────── */
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.surface-2 {
+  background: var(--cream-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+/* ── Hover lift ────────────────────────────────── */
+.lift {
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  border-color: var(--brown-1);
+}
+
+/* ── Pill badge ────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--cream-2);
+  border: 1px solid var(--border);
+  color: var(--brown-2);
+  transition: background 0.25s ease;
+}
+
+/* ── Primary button ────────────────────────────── */
+.btn-primary {
+  background: var(--brown-3);
+  color: var(--cream);
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.15s ease, transform 0.1s ease;
+  border: none;
+  cursor: pointer;
+}
+[data-theme="dark"] .btn-primary {
+  background: var(--brown-1);
+  color: #0D0D0F;
+}
+.btn-primary:hover  { opacity: 0.88; }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Ghost button ──────────────────────────────── */
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--brown-1);
+  background: var(--cream-2);
+}
+
+/* ── Input ─────────────────────────────────────── */
+.input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s ease, background 0.25s ease;
+  width: 100%;
+}
+.input::placeholder { color: var(--muted); }
+.input:focus { border-color: var(--brown-1); }
+
+/* ── Nav ───────────────────────────────────────── */
+.nav {
+  background: color-mix(in srgb, var(--cream) 90%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+/* ── Category colors ───────────────────────────── */
+.cat-founder  { color: #7C5C3A; background: #F5EBE0; border-color: #DEC9AE; }
+.cat-cto      { color: #5A5238; background: #F0EDE0; border-color: #CECA9E; }
+.cat-engineer { color: #3A5A52; background: #E0EDEA; border-color: #9ECAC0; }
+.cat-recruiter{ color: #5A3A52; background: #EDE0ED; border-color: #CAAECC; }
+
+[data-theme="dark"] .cat-founder  { color: #F5B98A; background: #271A10; border-color: #5A3A20; }
+[data-theme="dark"] .cat-cto      { color: #D4CF8A; background: #221F0E; border-color: #4A4720; }
+[data-theme="dark"] .cat-engineer { color: #8ACFC8; background: #0E2220; border-color: #204540; }
+[data-theme="dark"] .cat-recruiter{ color: #CF8AC8; background: #220E22; border-color: #452045; }
+
+/* ── Theme toggle button ───────────────────────── */
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--muted);
+  font-size: 16px;
+}
+.theme-toggle:hover {
+  background: var(--cream-3);
+  color: var(--text);
+  border-color: var(--brown-1);
+}
+
+/* ── Fade in ───────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.4s ease forwards; }
+.delay-1 { animation-delay: 80ms;  opacity: 0; }
+.delay-2 { animation-delay: 160ms; opacity: 0; }
+.delay-3 { animation-delay: 240ms; opacity: 0; }
+.delay-4 { animation-delay: 320ms; opacity: 0; }
+
+/* ── Skeleton ──────────────────────────────────── */
+@keyframes shimmer {
+  from { background-position: -600px 0; }
+  to   { background-position:  600px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--cream-2) 25%, var(--cream-3) 50%, var(--cream-2) 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 8px;
+}
+
+/* ── D3 Tree ───────────────────────────────────── */
+.tree-link {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5px;
+}
+.tree-node {
+  cursor: pointer;
+}
+.tree-node text {
+  font-family: 'Inter', sans-serif;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Spinner ───────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brown-2);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
