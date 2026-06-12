@@ -95,6 +95,34 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
+## Deploying to Vercel (Recommended)
+
+Vercel is the easiest way to share this app — it's free, deploys in one click, and works natively with Next.js.
+
+### Steps
+
+1. Push your repo to GitHub (`.env.local` is already in `.gitignore` — never commit it)
+2. Go to [vercel.com](https://vercel.com) → **New Project** → import your GitHub repo
+3. In the **Environment Variables** section, paste all the keys from your `.env.local`
+4. Click **Deploy** — your app will be live at `https://your-project.vercel.app`
+
+> **Keep `SUPABASE_SERVICE_ROLE_KEY` secret.** Never commit it. Only add it through Vercel's environment variables panel.
+
+---
+
+## Sharing with Students — How the API Limits Work
+
+The app is designed to handle shared usage gracefully without burning through your API quota.
+
+### Supabase caching (the key insight)
+
+Every company searched is saved to Supabase. When anyone searches "Stripe" after the first person already did, **no AI call is made** — it's served from the DB instantly. This means:
+
+- The **first search** for any company costs one AI call
+- Every **repeat search** is free and instant for everyone
+- Popular startups get cached fast — after the first student uses them, they're free for all
+
+
 ### Rate limit behaviour
 
 The app already shows a **60-second cooldown UI** when Gemini's free tier is hit, and automatically falls back across 4 providers:

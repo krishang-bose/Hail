@@ -8,8 +8,11 @@ import { searchHunter } from '@/lib/sources/hunter';
 import { searchGitHubOrg } from '@/lib/sources/github';
 import { lookupCompanyWeb, lookupCompanyWebAll, clearbitSearchAll } from '@/lib/sources/websearch';
 import { scrapeCompanyHomepage } from '@/lib/sources/firecrawl';
-import { checkDailyLimit, incrementUsage } from '@/lib/ratelimit';
-import { AUTH_ENABLED, DAILY_LIMIT } from '@/lib/constants';
+import {
+  checkDailyLimit, incrementUsage,
+  checkIpLimit, incrementIpUsage, hashIp, getClientIp,
+} from '@/lib/ratelimit';
+import { AUTH_ENABLED, DAILY_LIMIT, isAdmin } from '@/lib/constants';
 
 // Infer people category from role title — no AI needed
 function inferCategory(role?: string): 'founder' | 'cto' | 'engineer' | 'recruiter' {
@@ -23,35 +26,51 @@ function inferCategory(role?: string): 'founder' | 'cto' | 'engineer' | 'recruit
 export async function POST(req: NextRequest) {
   try {
     // ── Auth + rate limit (only when AUTH_ENABLED) ─────────────────────────────
-    let userId: string | null = null;
+    // Strategy:
+    //   • Signed-in users  → check userId-based daily limit (usage table)
+    //   • Anonymous users  → check IP-based daily limit (ip_usage table)
+    //     After their IP limit is hit they see the sign-in prompt.
+    //   • When AUTH_ENABLED = false → no limits, no auth required
+    let userId:  string | null = null;
+    let ipHash:  string | null = null;
+    let isAnon = false;
 
     if (AUTH_ENABLED) {
       const session = await auth();
-      if (!session?.user) {
-        return NextResponse.json(
-          { error: 'unauthenticated', message: 'Please sign in to search.' },
-          { status: 401 }
-        );
-      }
-      userId = (session.user as typeof session.user & { id?: string }).id ?? null;
-      if (!userId) {
-        return NextResponse.json(
-          { error: 'unauthenticated', message: 'Please sign in to search.' },
-          { status: 401 }
-        );
-      }
-
-      const { allowed, used } = await checkDailyLimit(userId);
-      if (!allowed) {
-        return NextResponse.json(
-          {
-            error:   'daily_limit',
-            message: `You've used all ${DAILY_LIMIT} searches for today. Resets at midnight UTC.`,
-            used,
-            limit:   DAILY_LIMIT,
-          },
-          { status: 429 }
-        );
+      if (session?.user) {
+        // Signed-in path — skip limits entirely for admins
+        userId = (session.user as typeof session.user & { id?: string }).id ?? null;
+        if (userId && !isAdmin(session.user.email)) {
+          const { allowed, used } = await checkDailyLimit(userId);
+          if (!allowed) {
+            return NextResponse.json(
+              {
+                error:   'daily_limit',
+                message: `You've used all ${DAILY_LIMIT} searches for today. Resets at midnight UTC.`,
+                used,
+                limit:   DAILY_LIMIT,
+              },
+              { status: 429 }
+            );
+          }
+        }
+      } else {
+        // Anonymous path — rate limit by IP
+        isAnon = true;
+        const ip = getClientIp(req);
+        ipHash = await hashIp(ip);
+        const { allowed, used } = await checkIpLimit(ipHash);
+        if (!allowed) {
+          return NextResponse.json(
+            {
+              error:   'anon_limit',
+              message: `You've used ${DAILY_LIMIT} free searches today. Sign in to continue.`,
+              used,
+              limit:   DAILY_LIMIT,
+            },
+            { status: 429 }
+          );
+        }
       }
     }
 
@@ -148,13 +167,13 @@ export async function POST(req: NextRequest) {
               const bRank = bl === ql ? 0 : bl.startsWith(ql) ? 1 : 2;
               return aRank - bRank;
             });
-            if (AUTH_ENABLED && userId) await incrementUsage(userId);
+            if (AUTH_ENABLED && !isAdmin((await auth())?.user?.email)) { if (userId) await incrementUsage(userId); else if (ipHash) await incrementIpUsage(ipHash); }
             return NextResponse.json({ companies: refreshed });
           }
         }
       }
 
-      if (AUTH_ENABLED && userId) await incrementUsage(userId);
+      if (AUTH_ENABLED && !isAdmin((await auth())?.user?.email)) { if (userId) await incrementUsage(userId); else if (ipHash) await incrementIpUsage(ipHash); }
       return NextResponse.json({ companies: cached });
     }
 
@@ -353,7 +372,7 @@ export async function POST(req: NextRequest) {
         return aRank - bRank;
       });
 
-      if (AUTH_ENABLED && userId) await incrementUsage(userId);
+      if (AUTH_ENABLED && !isAdmin((await auth())?.user?.email)) { if (userId) await incrementUsage(userId); else if (ipHash) await incrementIpUsage(ipHash); }
       return NextResponse.json({ companies: allMatches ?? [company] });
     }
 
@@ -556,7 +575,7 @@ export async function POST(req: NextRequest) {
       return aRank - bRank;
     });
 
-    if (AUTH_ENABLED && userId) await incrementUsage(userId);
+    if (AUTH_ENABLED && !isAdmin((await auth())?.user?.email)) { if (userId) await incrementUsage(userId); else if (ipHash) await incrementIpUsage(ipHash); }
     return NextResponse.json({ companies: allMatches ?? [company] });
 
   } catch (err) {

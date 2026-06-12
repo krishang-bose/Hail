@@ -94,12 +94,6 @@ export default function HomePage() {
     e.preventDefault();
     if (!query.trim() || loading || countdown > 0) return;
 
-    // If auth is on and user not signed in, show the modal immediately
-    if (AUTH_ENABLED && !session) {
-      setShowSignInModal(true);
-      return;
-    }
-
     setLoading(true);
     setError('');
     setSearched(true);
@@ -112,6 +106,9 @@ export default function HomePage() {
       const data = await res.json();
       if (!res.ok) {
         if (data.error === 'unauthenticated') {
+          setShowSignInModal(true);
+        } else if (data.error === 'anon_limit') {
+          // Anonymous IP limit hit — prompt sign in
           setShowSignInModal(true);
         } else if (data.error === 'daily_limit') {
           setError('daily_limit');

@@ -47,3 +47,67 @@ export async function incrementUsage(userId: string): Promise<void> {
     console.error('[RateLimit] incrementUsage error:', error.message);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IP-based rate limiting — for anonymous (not signed-in) users
+// IP is SHA-256 hashed before storage so we never store raw IP addresses.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** SHA-256 hash of an IP address — privacy-safe storage */
+export async function hashIp(ip: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(ip + (process.env.IP_HASH_SALT ?? 'hail-salt'));
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/** Extract the real client IP from Next.js request headers */
+export function getClientIp(req: Request): string {
+  const forwarded = (req.headers as any).get?.('x-forwarded-for')
+    ?? (req.headers as any)['x-forwarded-for'];
+  if (forwarded) return String(forwarded).split(',')[0].trim();
+  return 'unknown';
+}
+
+/**
+ * Check anonymous IP rate limit.
+ * Returns { allowed, used, limit }.
+ */
+export async function checkIpLimit(ipHash: string): Promise<{
+  allowed: boolean;
+  used: number;
+  limit: number;
+}> {
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data, error } = await supabaseAdmin
+    .from('ip_usage')
+    .select('calls')
+    .eq('ip_hash', ipHash)
+    .eq('date', today)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[RateLimit] checkIpLimit error:', error.message);
+    return { allowed: true, used: 0, limit: DAILY_LIMIT }; // fail open
+  }
+
+  const used = data?.calls ?? 0;
+  return { allowed: used < DAILY_LIMIT, used, limit: DAILY_LIMIT };
+}
+
+/** Atomically increment today's call count for an IP hash */
+export async function incrementIpUsage(ipHash: string): Promise<void> {
+  const today = new Date().toISOString().split('T')[0];
+
+  const { error } = await supabaseAdmin.rpc('increment_ip_usage', {
+    p_ip_hash: ipHash,
+    p_date:    today,
+  });
+
+  if (error) {
+    console.error('[RateLimit] incrementIpUsage error:', error.message);
+  }
+}

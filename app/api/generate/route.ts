@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { generateOutreach } from '@/lib/openai';
 import { buildPersonContext } from '@/lib/context';
 import { checkDailyLimit, incrementUsage } from '@/lib/ratelimit';
-import { DAILY_LIMIT, AUTH_ENABLED } from '@/lib/constants';
+import { DAILY_LIMIT, AUTH_ENABLED, isAdmin } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,18 +22,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
       }
 
-      const { allowed, used } = await checkDailyLimit(userId);
-      usedToday = used;
-      if (!allowed) {
-        return NextResponse.json(
-          {
-            error:   'daily_limit',
-            message: `You've used all ${DAILY_LIMIT} messages for today. Resets at midnight UTC.`,
-            used,
-            limit:   DAILY_LIMIT,
-          },
-          { status: 429 }
-        );
+      // Admins bypass rate limits entirely
+      if (!isAdmin(session.user.email)) {
+        const { allowed, used } = await checkDailyLimit(userId);
+        usedToday = used;
+        if (!allowed) {
+          return NextResponse.json(
+            {
+              error:   'daily_limit',
+              message: `You've used all ${DAILY_LIMIT} messages for today. Resets at midnight UTC.`,
+              used,
+              limit:   DAILY_LIMIT,
+            },
+            { status: 429 }
+          );
+        }
       }
     }
 

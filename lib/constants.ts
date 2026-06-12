@@ -7,3 +7,18 @@ export const DAILY_LIMIT = 2;
  * When false: everything works for anyone, no sign-in required, no usage tracking.
  */
 export const AUTH_ENABLED = true;
+
+/**
+ * Returns true if the given email belongs to an admin.
+ * Admins bypass all rate limits entirely.
+ * Set ADMIN_EMAILS in your env as a comma-separated list:
+ *   ADMIN_EMAILS=bosekrishang@gmail.com
+ */
+export function isAdmin(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const admins = (process.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+  return admins.includes(email.toLowerCase());
+}
