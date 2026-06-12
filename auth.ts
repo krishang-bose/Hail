@@ -18,6 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider !== 'google') return false;
       if (!user.email) return false;
 
+      // Best-effort DB sync — never block sign-in because of a DB issue
       try {
         const { error } = await supabaseAdmin
           .from('users')
@@ -32,15 +33,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           );
 
         if (error) {
-          console.error('[Auth] Supabase upsert error:', error.message);
-          return false;
+          // Log but DO NOT block — user can still sign in even if DB sync fails
+          console.error('[Auth] Supabase upsert error (non-fatal):', error.message);
         }
       } catch (err) {
-        console.error('[Auth] signIn callback error:', err);
-        return false;
+        console.error('[Auth] signIn callback error (non-fatal):', err);
       }
 
-      return true;
+      return true; // Always allow sign-in
     },
 
     // Embed our internal Supabase UUID into the JWT so API routes can use it
