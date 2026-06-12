@@ -95,6 +95,33 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
+### Rate limit behaviour
+
+The app already shows a **60-second cooldown UI** when Gemini's free tier is hit, and automatically falls back across 4 providers:
+
+| Provider | Free Limit |
+|---|---|
+| Gemini | 15 req/min, 1,500/day |
+| Groq | 30 req/min, 14,400/day |
+| Cohere | 20 req/min, 1,000/month |
+| Together AI | $1 free credit (~2,000 calls) |
+
+With 4 providers chained, new searches are rarely blocked, and cached results are always free.
+
+### Option B — Students run their own instance (BYOK)
+
+If you prefer students to each have their own isolated copy:
+
+1. Share the repo publicly on GitHub
+2. Each student creates their own free accounts:
+   - [supabase.com](https://supabase.com) — free, no credit card
+   - [aistudio.google.com/apikey](https://aistudio.google.com/apikey) — Gemini, free
+   - [console.groq.com](https://console.groq.com) — Groq, free
+3. They fill in `.env.local` and deploy to Vercel themselves
+
+Zero shared cost — each student has a completely independent instance.
+
+---
 
 ## API Keys Reference
 
