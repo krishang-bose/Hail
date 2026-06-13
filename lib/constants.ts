@@ -2,11 +2,12 @@
 export const DAILY_LIMIT = 2;
 
 /**
- * Set to true before deploying to enable Google OAuth + per-user rate limiting.
- * When true: BOTH /api/search and /api/generate require sign-in and count against DAILY_LIMIT.
- * When false: everything works for anyone, no sign-in required, no usage tracking.
+ * Controls whether Google OAuth + rate limiting is enforced.
+ * Reads from AUTH_ENABLED env var — set to 'false' in .env.local to disable locally.
+ * On Vercel (production), set AUTH_ENABLED=true in Environment Variables.
+ * Defaults to true if the env var is not set (safe for production).
  */
-export const AUTH_ENABLED = true;
+export const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false';
 
 /**
  * Returns true if the given email belongs to an admin.
