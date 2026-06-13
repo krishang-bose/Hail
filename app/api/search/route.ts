@@ -224,8 +224,14 @@ export async function POST(req: NextRequest) {
     };
 
     // Derive domain + website for Hunter / logo / Firecrawl
-    // Prefer Clearbit's domain (accurate) over guessed domain from company name
-    const clearbitPrimary = clearbitAll[0] ?? null;
+    // Clearbit[0] isn't always the best match — pick the result whose name
+    // most closely matches the query (exact > starts-with > contains > first)
+    const ql = q.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const clearbitPrimary = clearbitAll.length === 0 ? null :
+      clearbitAll.find(r => r.name?.toLowerCase().replace(/[^a-z0-9]/g, '') === ql)    // exact
+      ?? clearbitAll.find(r => r.name?.toLowerCase().replace(/[^a-z0-9]/g, '').startsWith(ql)) // starts-with
+      ?? clearbitAll.find(r => r.name?.toLowerCase().replace(/[^a-z0-9]/g, '').includes(ql))  // contains
+      ?? clearbitAll[0];                                                                 // fallback
     const website = ycCompany?.website ?? clearbitPrimary?.website ?? `https://${q.toLowerCase().replace(/\s+/g, '')}.com`;
     let domain: string | null = clearbitPrimary?.domain ?? null;
     if (!domain) {
