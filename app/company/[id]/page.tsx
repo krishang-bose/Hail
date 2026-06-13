@@ -259,8 +259,8 @@ export default function CompanyPage({ params }: { params: Promise<{ id: string }
           </div>
 
           {activeTab === 'tree' ? (
-            <div className="flex">
-              <div className="flex-1 h-[540px] p-2" style={{ background: 'var(--cream)' }}>
+            <div className="flex flex-col lg:flex-row">
+              <div className="flex-1 h-[380px] lg:h-[540px] p-2" style={{ background: 'var(--cream)' }}>
                 <OrgTree
                   company={{ id: company.id, name: company.name, industry: company.industry }}
                   people={people}
@@ -270,8 +270,10 @@ export default function CompanyPage({ params }: { params: Promise<{ id: string }
               </div>
 
               {selectedPerson && (
-                <div className="w-64 border-l p-5 flex flex-col gap-4"
-                  style={{ borderColor: 'var(--border)', background: '#fff' }}>
+                <div
+                  className="lg:w-64 lg:border-l border-t lg:border-t-0 p-5 flex flex-col gap-4"
+                  style={{ borderColor: 'var(--border)', background: '#fff' }}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-[var(--muted)] uppercase tracking-wide">Selected</span>
                     <button onClick={() => setSelectedPerson(null)}
@@ -373,20 +375,19 @@ export default function CompanyPage({ params }: { params: Promise<{ id: string }
 
         {/* Floating CTA */}
         {selectedPerson && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md"
             style={{ filter: 'drop-shadow(0 4px 20px rgba(74,59,44,0.15))' }}>
-            <div className="surface flex items-center gap-4 px-5 py-3.5 rounded-2xl">
+            <div className="surface flex items-center gap-3 px-4 py-3 rounded-2xl flex-wrap justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center font-medium text-xs"
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center font-medium text-xs shrink-0"
                   style={{ background: `${dotColor[selectedPerson.category]}18`, color: dotColor[selectedPerson.category] }}>
                   {selectedPerson.name.split(' ').map((n) => n[0]).slice(0, 2).join('')}
                 </div>
                 <div>
                   <span className="text-sm font-medium text-[var(--brown-3)]">{selectedPerson.name}</span>
-                  <span className="text-xs text-[var(--muted)] ml-2">{selectedPerson.role}</span>
+                  <span className="text-xs text-[var(--muted)] ml-2 hidden sm:inline">{selectedPerson.role}</span>
                 </div>
               </div>
-              <div className="w-px h-6" style={{ background: 'var(--border)' }} />
               <button onClick={handleOutreach}
                 className="btn-primary flex items-center gap-2 text-sm py-2 px-4">
                 <MessageSquare className="w-3.5 h-3.5" />
