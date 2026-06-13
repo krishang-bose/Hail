@@ -104,11 +104,13 @@ function nameToSlugs(companyName: string, domain: string | null): string[] {
   if (base.endsWith('-inc'))   slugs.push(base.slice(0, -4));
   if (base.endsWith('-hq'))    slugs.push(base.slice(0, -3));
   if (!base.endsWith('hq'))   slugs.push(`${base}hq`);
+  if (!base.endsWith('s'))    slugs.push(`${base}s`);   // e.g. "anthropic" → "anthropics"
+  if (base.endsWith('s'))     slugs.push(base.slice(0, -1)); // e.g. "googles" → "google"
   if (domain) {
     const domSlug = domain.split('.')[0].toLowerCase();
     if (domSlug && !slugs.includes(domSlug)) slugs.push(domSlug);
   }
-  return [...new Set(slugs)].slice(0, 5);
+  return [...new Set(slugs)].slice(0, 6);
 }
 
 /** Derive a human-readable role from a GitHub user's bio + company fields */
@@ -140,6 +142,8 @@ export async function searchGitHubOrg(
   const slugs = nameToSlugs(companyName, domain);
 
   let orgLogin: string | null = null;
+
+  // 1. Try direct slug variations first (fast, no rate limit cost)
   for (const slug of slugs) {
     const org = await ghFetch(`https://api.github.com/orgs/${slug}`);
     if (org?.login) {
@@ -149,8 +153,26 @@ export async function searchGitHubOrg(
     }
   }
 
+  // 2. Fallback: search GitHub for orgs matching the company name
   if (!orgLogin) {
-    console.log(`[GitHub] No org found for "${companyName}" (tried: ${slugs.join(', ')})`);
+    const q = encodeURIComponent(`${companyName} type:org`);
+    const searchRes = await ghFetch(`https://api.github.com/search/users?q=${q}&per_page=5`);
+    if (searchRes?.items?.length) {
+      // Pick the first result whose login loosely matches the company name
+      const baseName = companyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const match = searchRes.items.find((item: any) => {
+        const login = item.login.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return login.startsWith(baseName) || baseName.startsWith(login);
+      });
+      if (match) {
+        orgLogin = match.login;
+        console.log(`[GitHub] Found org "${orgLogin}" via search fallback`);
+      }
+    }
+  }
+
+  if (!orgLogin) {
+    console.log(`[GitHub] No org found for "${companyName}" (tried: ${slugs.join(', ')} + search)`);
     return [];
   }
 
