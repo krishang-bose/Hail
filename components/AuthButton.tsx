@@ -30,7 +30,12 @@ export default function AuthButton({ usedCalls }: AuthButtonProps) {
     if (usedCalls !== undefined) setUsageToday(usedCalls);
   }, [usedCalls]);
 
-  if (status === 'loading') {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // Render nothing until client-side hydration is complete.
+  // This prevents the server/client HTML mismatch from the session loading state.
+  if (!mounted || status === 'loading') {
     return (
       <div className="h-8 w-24 rounded-lg animate-pulse" style={{ background: 'var(--cream-2)' }} />
     );
