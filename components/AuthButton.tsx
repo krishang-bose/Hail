@@ -33,9 +33,11 @@ export default function AuthButton({ usedCalls }: AuthButtonProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Render nothing until client-side hydration is complete.
-  // This prevents the server/client HTML mismatch from the session loading state.
-  if (!mounted || status === 'loading') {
+  // Server renders nothing — client also renders nothing until mounted.
+  // This guarantees server HTML === initial client HTML → no hydration error.
+  if (!mounted) return null;
+
+  if (status === 'loading') {
     return (
       <div className="h-8 w-24 rounded-lg animate-pulse" style={{ background: 'var(--cream-2)' }} />
     );

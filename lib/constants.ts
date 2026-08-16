@@ -3,11 +3,11 @@ export const DAILY_LIMIT = 2;
 
 /**
  * Controls whether Google OAuth + rate limiting is enforced.
- * Reads from AUTH_ENABLED env var — set to 'false' in .env.local to disable locally.
- * On Vercel (production), set AUTH_ENABLED=true in Environment Variables.
- * Defaults to true if the env var is not set (safe for production).
+ * MUST use NEXT_PUBLIC_ prefix so the value is consistent on both server and client.
+ * Set NEXT_PUBLIC_AUTH_ENABLED=false in .env.local to disable locally.
+ * On Vercel, leave unset (defaults true) or set NEXT_PUBLIC_AUTH_ENABLED=true.
  */
-export const AUTH_ENABLED = process.env.AUTH_ENABLED !== 'false';
+export const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED !== 'false';
 
 /**
  * Returns true if the given email belongs to an admin.

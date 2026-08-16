@@ -134,3 +134,132 @@ export async function lookupCompanyWebAll(query: string): Promise<WebCompanyResu
 
   return clearbitResults;
 }
+
+// ── LinkedIn company search ────────────────────────────────────────────────
+// Searches DuckDuckGo for site:linkedin.com/company "CompanyName"
+// to extract company page URL + description snippet.
+
+export interface LinkedInCompanyResult {
+  linkedinUrl: string;
+  description: string | null;
+  industry:    string | null;
+}
+
+export async function searchLinkedInCompany(
+  companyName: string
+): Promise<LinkedInCompanyResult | null> {
+  try {
+    const query = `site:linkedin.com/company "${companyName}"`;
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HailBot/1.0)', 'Accept-Language': 'en-US,en;q=0.9' },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+
+    const html = await res.text();
+
+    // Find first linkedin.com/company link
+    const linkMatch = html.match(/href="(https?:\/\/(?:www\.)?linkedin\.com\/company\/[^"?&]+)/);
+    if (!linkMatch) return null;
+
+    // Extract snippet text (description-like content)
+    const snippetMatch = html.match(/<a[^>]+class="result__snippet"[^>]*>([^<]{20,})<\/a>/);
+    const raw = snippetMatch?.[1]?.trim() ?? null;
+
+    // Attempt to extract industry from snippet like "... | Industry · ..."
+    const industryMatch = raw?.match(/Industry[·\s·]+([^|·\n]{3,40})/i);
+    const industry = industryMatch?.[1]?.trim() ?? null;
+
+    console.log(`[LinkedIn] Company page found: ${linkMatch[1]}`);
+    return { linkedinUrl: linkMatch[1], description: raw, industry };
+  } catch (e) {
+    console.warn('[LinkedIn] Company search error:', e);
+    return null;
+  }
+}
+
+// When Hunter + GitHub return 0 people, search DuckDuckGo for:
+//   site:linkedin.com/in "CompanyName"
+// This returns real public LinkedIn profile URLs without needing an API key.
+
+export interface LinkedInPersonResult {
+  name:        string;
+  linkedinUrl: string;
+  role:        string | null;
+  snippet:     string | null;
+}
+
+/**
+ * Search DuckDuckGo for LinkedIn profiles matching a company name.
+ * Uses the HTML endpoint (no API key, no rate limit header needed).
+ * Returns up to `limit` results.
+ */
+export async function searchLinkedInEmployees(
+  companyName: string,
+  limit = 15
+): Promise<LinkedInPersonResult[]> {
+  try {
+    const query = `site:linkedin.com/in "${companyName}"`;
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; HailBot/1.0)',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) {
+      console.warn('[LinkedIn] DDG request failed:', res.status);
+      return [];
+    }
+
+    const html = await res.text();
+
+    // Extract result blocks — each is a <div class="result__body">
+    const results: LinkedInPersonResult[] = [];
+
+    // Match LinkedIn /in/ profile URLs
+    const linkRegex = /href="(https?:\/\/(?:www\.)?linkedin\.com\/in\/[^"?&]+)/g;
+    const titleRegex = /<a[^>]+class="result__a"[^>]*>([^<]+)<\/a>/g;
+    const snippetRegex = /<a[^>]+class="result__snippet"[^>]*>([^<]+)<\/a>/gs;
+
+    const links:    string[] = [];
+    const titles:   string[] = [];
+    const snippets: string[] = [];
+
+    let m: RegExpExecArray | null;
+    while ((m = linkRegex.exec(html)) !== null)   links.push(m[1]);
+    while ((m = titleRegex.exec(html)) !== null)  titles.push(m[1].trim());
+    while ((m = snippetRegex.exec(html)) !== null) snippets.push(m[1].trim());
+
+    for (let i = 0; i < Math.min(links.length, limit); i++) {
+      const rawTitle = titles[i] ?? '';
+      const snippet  = snippets[i] ?? null;
+
+      // LinkedIn titles look like "John Smith - Senior Engineer at Acme | LinkedIn"
+      // Extract name (before first " - " or " | ")
+      const namePart = rawTitle.split(' - ')[0].split(' | ')[0].trim();
+      // Extract role from title: "John Smith - Senior Engineer at Acme | LinkedIn"
+      const afterDash = rawTitle.split(' - ')[1] ?? '';
+      const role = afterDash.split(' at ')[0].split(' | ')[0].trim() || null;
+
+      if (!namePart || namePart.toLowerCase().includes('linkedin')) continue;
+
+      results.push({
+        name:        namePart,
+        linkedinUrl: links[i],
+        role:        role || null,
+        snippet:     snippet,
+      });
+    }
+
+    console.log(`[LinkedIn] Found ${results.length} profiles via DDG for "${companyName}"`);
+    return results;
+  } catch (e) {
+    console.warn('[LinkedIn] Search error:', e);
+    return [];
+  }
+}

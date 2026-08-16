@@ -119,3 +119,47 @@ function extractFirstParagraph(markdown: string): string | null {
   }
   return null;
 }
+/**
+ * Try to scrape a company team/about page and return its raw markdown.
+ * Tries /team, /about, /people, /company, /who-we-are in order.
+ * Returns the first successful scrape as markdown text, or null.
+ */
+export async function scrapeTeamPage(baseWebsite: string): Promise<{ url: string; markdown: string } | null> {
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) return null;
+
+  const base = baseWebsite.replace(/\/$/, '');
+  const candidates = ['/team', '/about', '/people', '/company', '/about-us', '/who-we-are'];
+
+  for (const path of candidates) {
+    const targetUrl = `${base}${path}`;
+    try {
+      const res = await fetch(FIRECRAWL_API, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url:             targetUrl,
+          formats:         ['markdown'],
+          onlyMainContent: true,
+          timeout:         6000,
+        }),
+        next: { revalidate: 86400 },
+      });
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (!json.success || !json.data?.markdown) continue;
+
+      const markdown = (json.data.markdown as string).trim();
+      // Only use if page has meaningful content (>200 chars) and looks like a people page
+      if (markdown.length < 200) continue;
+      const lower = markdown.toLowerCase();
+      const hasPeopleSignals = lower.includes('ceo') || lower.includes('founder') || lower.includes('head of')
+        || lower.includes('engineer') || lower.includes('team') || lower.includes('co-founder');
+      if (!hasPeopleSignals) continue;
+
+      console.log(`[Firecrawl] Team page hit: ${targetUrl} (${markdown.length} chars)`);
+      return { url: targetUrl, markdown };
+    } catch { continue; }
+  }
+  return null;
+}

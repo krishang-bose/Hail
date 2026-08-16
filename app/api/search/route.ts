@@ -6,8 +6,8 @@ import { findYCCompany } from '@/lib/sources/yc';
 import { searchHN } from '@/lib/sources/hn';
 import { searchHunter } from '@/lib/sources/hunter';
 import { searchGitHubOrg } from '@/lib/sources/github';
-import { lookupCompanyWeb, lookupCompanyWebAll, clearbitSearchAll } from '@/lib/sources/websearch';
-import { scrapeCompanyHomepage } from '@/lib/sources/firecrawl';
+import { lookupCompanyWeb, lookupCompanyWebAll, clearbitSearchAll, searchLinkedInEmployees, searchLinkedInCompany } from '@/lib/sources/websearch';
+import { scrapeCompanyHomepage, scrapeTeamPage } from '@/lib/sources/firecrawl';
 import {
   checkDailyLimit, incrementUsage,
   checkIpLimit, incrementIpUsage, hashIp, getClientIp,
@@ -225,13 +225,43 @@ export async function POST(req: NextRequest) {
 
     // Derive domain + website for Hunter / logo / Firecrawl
     // Clearbit[0] isn't always the best match — pick the result whose name
-    // most closely matches the query (exact > starts-with > contains > first)
+    // most closely matches the query:
+    //   1. Exact normalized match  (e.g. "tessl" === "tessl")
+    //   2. Starts-with AND not >30% longer than query (rejects "tesslab" for "tessl")
+    //   3. Contains match (only if name isn't wildly different in length)
+    //   4. First result as fallback — only if name length is within 50% of query
+    //   5. null — let the query name stand on its own
     const ql = q.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    const exactMatch = clearbitAll.find(r => normalize(r.name ?? '') === ql);
+
+    // Starts-with: only accept if candidate isn't more than 30% longer than query
+    const startsWithAll = clearbitAll.filter(r => {
+      const n = normalize(r.name ?? '');
+      return n.startsWith(ql) && n.length / ql.length <= 1.3;
+    });
+    const startsWithBest = startsWithAll.sort((a, b) =>
+      normalize(a.name ?? '').length - normalize(b.name ?? '').length
+    )[0] ?? null;
+
+    // Contains: only if candidate name is within 2× query length
+    const containsMatch = clearbitAll.find(r => {
+      const n = normalize(r.name ?? '');
+      return n.includes(ql) && n.length / ql.length <= 2.0;
+    });
+
+    // Fallback: first result only if name is reasonably close in length (≤50% longer)
+    const fallback = clearbitAll.find(r => normalize(r.name ?? '').length / ql.length <= 1.5) ?? null;
+
     const clearbitPrimary = clearbitAll.length === 0 ? null :
-      clearbitAll.find(r => r.name?.toLowerCase().replace(/[^a-z0-9]/g, '') === ql)    // exact
-      ?? clearbitAll.find(r => r.name?.toLowerCase().replace(/[^a-z0-9]/g, '').startsWith(ql)) // starts-with
-      ?? clearbitAll.find(r => r.name?.toLowerCase().replace(/[^a-z0-9]/g, '').includes(ql))  // contains
-      ?? clearbitAll[0];                                                                 // fallback
+      exactMatch ?? startsWithBest ?? containsMatch ?? fallback;
+
+    if (clearbitPrimary) {
+      console.log(`[Clearbit] Primary: "${clearbitPrimary.name}" | ${clearbitPrimary.domain}`);
+    } else {
+      console.log(`[Clearbit] No close match for "${q}" — using query name directly`);
+    }
     const website = ycCompany?.website ?? clearbitPrimary?.website ?? `https://${q.toLowerCase().replace(/\s+/g, '')}.com`;
     let domain: string | null = clearbitPrimary?.domain ?? null;
     if (!domain) {
@@ -243,17 +273,20 @@ export async function POST(req: NextRequest) {
     //    Hunter:   real contacts with emails
     //    GitHub:   org members (free, no key needed) with names + roles
     //    Firecrawl: their own marketing copy
+    //    LinkedIn:  company page snippet + industry
     // ─────────────────────────────────────────────
-    const [hunterData, githubPeople, firecrawlResult] = await Promise.all([
+    const [hunterData, githubPeople, firecrawlResult, linkedInPeople, linkedInCompany] = await Promise.all([
       domain ? searchHunter(domain) : Promise.resolve({ emailPattern: null, organization: null, people: [] }),
       searchGitHubOrg(q, domain, 20),
       scrapeCompanyHomepage(website),
+      searchLinkedInEmployees(q, 15),
+      searchLinkedInCompany(q),
     ]);
 
-    // Merge Hunter + GitHub people — Hunter gets priority (has emails)
+    // Merge Hunter + GitHub + LinkedIn — Hunter first (has emails), then GitHub, then LinkedIn
     // Deduplicate by lowercased name so we don't show the same person twice
     const seenNames = new Set<string>();
-    const mergedPeople: Array<{ name: string; role: string; email: string | null; linkedinUrl: string | null; source: 'hunter' | 'github' }> = [];
+    const mergedPeople: Array<{ name: string; role: string; email: string | null; linkedinUrl: string | null; source: 'hunter' | 'github' | 'linkedin' }> = [];
 
     for (const p of hunterData.people) {
       const key = p.name.toLowerCase();
@@ -269,8 +302,15 @@ export async function POST(req: NextRequest) {
         mergedPeople.push({ name: p.name, role: p.role, email: p.email ?? null, linkedinUrl: p.blog ?? null, source: 'github' });
       }
     }
+    for (const p of linkedInPeople) {
+      const key = p.name.toLowerCase();
+      if (!seenNames.has(key)) {
+        seenNames.add(key);
+        mergedPeople.push({ name: p.name, role: p.role ?? 'Team Member', email: null, linkedinUrl: p.linkedinUrl, source: 'linkedin' });
+      }
+    }
 
-    console.log(`[People] Hunter: ${hunterData.people.length}, GitHub: ${githubPeople.length}, merged: ${mergedPeople.length}`);
+    console.log(`[People] Hunter: ${hunterData.people.length}, GitHub: ${githubPeople.length}, LinkedIn: ${linkedInPeople.length}, merged: ${mergedPeople.length}`);
 
     // Use mergedPeople as realPeople for downstream storage
     const realPeople = mergedPeople;
@@ -353,7 +393,7 @@ export async function POST(req: NextRequest) {
         }));
         const { error: pe } = await supabaseAdmin.from('people').insert(people);
         if (pe) console.error('[Search] People insert error:', pe.message);
-        else console.log(`[Search] Saved ${people.length} real people (Hunter+GitHub)`);
+        else console.log(`[Search] Saved ${people.length} real people (Hunter+GitHub+LinkedIn)`);
       } else {
         console.log('[Search] No people found from any source — leaving team empty');
       }
@@ -479,9 +519,9 @@ export async function POST(req: NextRequest) {
 
     const finalName     = bestName;
     const finalWebsite  = webResult?.website || website;
-    const finalDesc     = rawDescription;
+    const finalDesc     = rawDescription || linkedInCompany?.description || '';
     const finalMission  = (bestFirecrawl?.ogDescription || rawDescription)?.split('.')[0]?.trim() + '.' || '';
-    const finalIndustry = aiMeta?.industry || '';
+    const finalIndustry = aiMeta?.industry || linkedInCompany?.industry || '';
     const finalLogo     = webResult?.logo_url
       || (webResult?.domain ? `https://favicon.im/${webResult.domain}?larger=true` : null)
       || (domain ? `https://favicon.im/${domain}?larger=true` : null);
@@ -557,7 +597,7 @@ export async function POST(req: NextRequest) {
         }))
       );
       if (pe) console.error('[Search] People insert error:', pe.message);
-      else console.log(`[Search] Saved ${realPeople.length} real people (Hunter+GitHub)`);
+      else console.log(`[Search] Saved ${realPeople.length} real people (Hunter+GitHub+LinkedIn)`);
     } else {
       console.log('[Search] No people found from any source — leaving team empty');
     }
