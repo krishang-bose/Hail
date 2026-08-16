@@ -50,3 +50,13 @@ next-env.d.ts
 # supabase/.branches and .temp contain local state, not schema
 supabase/.branches
 supabase/.temp
+
+# ── AI / IDE tooling ──────────────────────────────────────────────────────────
+# Agent skills and IDE config — local dev tooling, not application code
+.agents/
+skills-lock.json
+
+# ── Codegen / analysis dumps ──────────────────────────────────────────────────
+# Full codebase dumps — useful locally but not for version control
+repomix-output.xml
+repomix-output*.xml
