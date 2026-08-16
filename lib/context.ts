@@ -80,10 +80,10 @@ export async function buildPersonContext(params: {
 				// 24hr TTL
 				console.log("[Context] Cache hit — skipping all external API calls");
 				const c = cached.context_cache as {
-					github?: unknown;
-					jobs?: unknown[];
-					phProducts?: unknown[];
-					hnMentions?: unknown[];
+					github?: GitHubProfile;
+					jobs?: JobPosting[];
+					phProducts?: PHProduct[];
+					hnMentions?: string[];
 				};
 				return {
 					...buildCompact({

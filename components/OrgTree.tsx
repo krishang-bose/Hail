@@ -177,14 +177,7 @@ export default function OrgTree({
 			.data(root.links())
 			.join("path")
 			.attr("class", "tree-link")
-			.attr(
-				"d",
-				linkGenerator as d3.ValueFn<
-					SVGPathElement,
-					d3.HierarchyPointLink<TreeNode>,
-					string | null
-				>,
-			)
+			.attr("d", (d) => linkGenerator(d as d3.HierarchyPointLink<TreeNode>))
 			.attr("stroke", "rgba(139, 115, 85, 0.25)")
 			.attr("stroke-width", 1.5)
 			.attr("fill", "none")

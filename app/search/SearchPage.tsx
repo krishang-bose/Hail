@@ -1,0 +1,477 @@
+"use client";
+
+import {
+	ArrowRight,
+	Building2,
+	ChevronRight,
+	Clock,
+	Home,
+	LogIn,
+	Search,
+} from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { HailLogo } from "@/app/theme-provider";
+import AuthButton from "@/components/AuthButton";
+import { AUTH_ENABLED } from "@/lib/constants";
+import { Company } from "@/lib/types";
+
+function CompanyLogo({
+	logoUrl,
+	name,
+	website,
+	className,
+}: {
+	logoUrl?: string | null;
+	name: string;
+	website?: string;
+	className?: string;
+}) {
+	const getFaviconUrl = () => {
+		if (logoUrl) return logoUrl;
+		if (website) {
+			try {
+				const domain = new URL(
+					website.startsWith("http") ? website : `https://${website}`,
+				).hostname;
+				return `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
+			} catch {
+				return null;
+			}
+		}
+		return null;
+	};
+
+	const [src, setSrc] = useState<string | null>(getFaviconUrl);
+
+	if (src) {
+		return (
+			<div
+				className={`relative flex items-center justify-center overflow-hidden ${className ?? ""}`}
+				style={{
+					background: "var(--surface)",
+					border: "1px solid var(--border)",
+				}}
+			>
+				<Image
+					src={src}
+					alt={`${name} logo`}
+					fill
+					sizes="128px"
+					className="object-contain p-1.5"
+					onError={() => {
+						if (src === logoUrl && website) {
+							try {
+								const domain = new URL(
+									website.startsWith("http") ? website : `https://${website}`,
+								).hostname;
+								setSrc(
+									`https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+								);
+								return;
+							} catch {
+								/* fall through */
+							}
+						}
+						setSrc(null);
+					}}
+				/>
+			</div>
+		);
+	}
+	return (
+		<div
+			className={`flex items-center justify-center ${className ?? ""}`}
+			style={{
+				background: "var(--cream-2)",
+				border: "1px solid var(--border)",
+			}}
+		>
+			<Building2 className="w-4 h-4 text-[var(--brown-1)]" />
+		</div>
+	);
+}
+
+export default function SearchPage() {
+	const searchParams = useSearchParams();
+	const router = useRouter();
+	// session used for conditional UI (e.g. daily limit sign-in prompt)
+	useSession();
+
+	const initialQuery = searchParams.get("q") ?? "";
+	const [query, setQuery] = useState(initialQuery);
+	const [loading, setLoading] = useState(false);
+	const [results, setResults] = useState<Company[]>([]);
+	const [error, setError] = useState("");
+	const [hasSearched, setHasSearched] = useState(false);
+	const [countdown, setCountdown] = useState(0);
+	const [showSignInModal, setShowSignInModal] = useState(false);
+	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+	const startCountdown = useCallback((seconds: number) => {
+		setCountdown(seconds);
+		if (timerRef.current) clearInterval(timerRef.current);
+		timerRef.current = setInterval(() => {
+			setCountdown((prev) => {
+				if (prev <= 1) {
+					clearInterval(timerRef.current!);
+					setError("");
+					return 0;
+				}
+				return prev - 1;
+			});
+		}, 1000);
+	}, []);
+
+	useEffect(
+		() => () => {
+			if (timerRef.current) clearInterval(timerRef.current);
+		},
+		[],
+	);
+
+	const runSearch = useCallback(
+		async (q: string) => {
+			if (!q.trim() || loading || countdown > 0) return;
+			setLoading(true);
+			setError("");
+			setHasSearched(true);
+
+			// Keep URL in sync without a full navigation
+			const url = new URL(window.location.href);
+			url.searchParams.set("q", q.trim());
+			window.history.replaceState(null, "", url.toString());
+
+			try {
+				const res = await fetch("/api/search", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ query: q.trim() }),
+				});
+				const data = await res.json();
+				if (!res.ok) {
+					if (
+						data.error === "unauthenticated" ||
+						data.error === "anon_limit"
+					) {
+						setShowSignInModal(true);
+					} else if (data.error === "daily_limit") {
+						setError("daily_limit");
+					} else if (data.error === "rate_limited") {
+						startCountdown(60);
+						setError("rate_limited");
+					} else if (data.error === "company_not_found") {
+						setResults([]);
+						setError(
+							data.message || `Couldn't find that company. Try the exact name.`,
+						);
+					} else {
+						setError(data.message || "Search failed. Please try again.");
+					}
+					return;
+				}
+				setResults(data.companies || []);
+			} catch {
+				setError("Network error — please try again.");
+			} finally {
+				setLoading(false);
+			}
+		},
+		[loading, countdown, startCountdown],
+	);
+
+	// Auto-run on mount when a query is present in the URL
+	useEffect(() => {
+		if (initialQuery.trim()) {
+			runSearch(initialQuery);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	const handleSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		runSearch(query);
+	};
+
+	return (
+		<div
+			className="min-h-screen flex flex-col"
+			style={{ background: "var(--cream)" }}
+		>
+			{/* Nav */}
+			<nav className="nav fixed top-0 left-0 right-0 z-50">
+				<div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+					<div className="flex items-center gap-3">
+						{/* Home icon */}
+						<Link
+							href="/"
+							className="flex items-center justify-center w-8 h-8 rounded-xl transition-colors hover:bg-[var(--cream-2)]"
+							title="Back to home"
+						>
+							<Home className="w-4 h-4 text-[var(--muted)]" />
+						</Link>
+						<HailLogo className="text-lg" />
+					</div>
+					<div className="flex items-center gap-3">
+						{AUTH_ENABLED && <AuthButton />}
+					</div>
+				</div>
+			</nav>
+
+			<main className="flex-1 flex flex-col items-center pt-28 pb-20 px-6">
+				<div className="w-full max-w-2xl">
+					{/* Search bar */}
+					<form onSubmit={handleSubmit} className="mb-8">
+						<div className="surface flex items-center gap-3 px-4 py-3 focus-within:border-[var(--brown-1)] transition-colors">
+							<Search className="w-4 h-4 text-[var(--muted)] shrink-0" />
+							<input
+								autoFocus
+								type="text"
+								value={query}
+								onChange={(e) => setQuery(e.target.value)}
+								placeholder="Search a startup…"
+								className="flex-1 bg-transparent text-[var(--text)] placeholder-[var(--muted)] outline-none text-[15px]"
+							/>
+							<button
+								type="submit"
+								disabled={loading || !query.trim() || countdown > 0}
+								className="btn-primary flex items-center gap-2 py-2 px-4 text-sm"
+							>
+								{loading ? (
+									<>
+										<span className="spinner" style={{ width: 14, height: 14 }} />{" "}
+										Searching
+									</>
+								) : (
+									<>
+										<span>Search</span>
+										<ArrowRight className="w-3.5 h-3.5" />
+									</>
+								)}
+							</button>
+						</div>
+					</form>
+
+					{/* Results header */}
+					{hasSearched && !loading && (
+						<div className="mb-5">
+							<h1 className="text-xl font-semibold text-[var(--brown-3)]">
+								&ldquo;{query}&rdquo;
+							</h1>
+							{results.length > 0 && (
+								<p className="text-sm text-[var(--muted)] mt-0.5">
+									{results.length} result{results.length !== 1 ? "s" : ""}
+								</p>
+							)}
+						</div>
+					)}
+
+					{/* Errors */}
+					{error === "rate_limited" ? (
+						<div
+							className="mb-4 px-5 py-4 rounded-2xl border flex items-start gap-3"
+							style={{ background: "#FDF8F0", borderColor: "#DDD6C8" }}
+						>
+							<Clock className="w-4 h-4 text-[var(--brown-1)] mt-0.5 shrink-0" />
+							<div>
+								<p className="text-sm font-medium text-[var(--brown-3)] mb-0.5">
+									Rate limit hit — please wait
+								</p>
+								<p className="text-xs text-[var(--muted)]">
+									{countdown > 0 ? (
+										<>
+											Ready in{" "}
+											<span className="font-semibold text-[var(--brown-2)]">
+												{countdown}s
+											</span>{" "}
+											— search will unlock automatically.
+										</>
+									) : (
+										<>You can search again now.</>
+									)}
+								</p>
+							</div>
+						</div>
+					) : error === "daily_limit" ? (
+						<div
+							className="mb-4 px-5 py-4 rounded-2xl border flex items-start gap-3"
+							style={{ background: "#FDF8F0", borderColor: "#DDD6C8" }}
+						>
+							<Clock className="w-4 h-4 text-[var(--brown-1)] mt-0.5 shrink-0" />
+							<div>
+								<p className="text-sm font-medium text-[var(--brown-3)] mb-0.5">
+									Daily limit reached
+								</p>
+								<p className="text-xs text-[var(--muted)] mb-2">
+									You've used your 2 searches for today. Resets at midnight UTC.
+								</p>
+								{AUTH_ENABLED && (
+									<button
+										onClick={() => signIn("google")}
+										className="text-xs font-medium text-[var(--brown-2)] hover:underline"
+									>
+										Sign in with a different account →
+									</button>
+								)}
+							</div>
+						</div>
+					) : error ? (
+						<div
+							className="mb-4 px-4 py-3 rounded-xl border text-sm"
+							style={{
+								background: "#FEF3F0",
+								borderColor: "#F5C9BC",
+								color: "#8B3A2A",
+							}}
+						>
+							{error}
+						</div>
+					) : null}
+
+					{/* Loading skeletons */}
+					{loading && (
+						<div className="space-y-3">
+							{[1, 2].map((i) => (
+								<div key={i} className="surface p-6">
+									<div className="skeleton h-4 w-1/3 mb-3" />
+									<div className="skeleton h-3 w-1/4 mb-4" />
+									<div className="skeleton h-3 w-full mb-2" />
+									<div className="skeleton h-3 w-4/5" />
+								</div>
+							))}
+							<p className="text-center text-xs text-[var(--muted)] mt-3">
+								Researching with AI — takes about 5 seconds…
+							</p>
+						</div>
+					)}
+
+					{/* No results */}
+					{!loading && hasSearched && results.length === 0 && !error && (
+						<div className="text-center py-16 text-[var(--muted)] text-sm">
+							No results found. Try a different name.
+						</div>
+					)}
+
+					{/* Result cards */}
+					{!loading && results.length > 0 && (
+						<div className="space-y-3">
+							{results.map((company, i) => (
+								<button
+									key={company.id}
+									onClick={() => router.push(`/company/${company.id}`)}
+									className="surface lift w-full text-left p-6 group fade-up"
+									style={{ animationDelay: `${i * 80}ms` }}
+								>
+									<div className="flex items-start justify-between gap-4">
+										<div className="flex-1 min-w-0">
+											<div className="flex items-center gap-3 mb-2">
+												<CompanyLogo
+													logoUrl={company.logo_url}
+													website={company.website}
+													name={company.name}
+													className="w-9 h-9 rounded-xl shrink-0"
+												/>
+												<div>
+													<h3 className="font-semibold text-[var(--brown-3)] group-hover:text-[var(--brown-2)] transition-colors">
+														{company.name}
+													</h3>
+													<span className="pill text-xs">{company.industry}</span>
+												</div>
+											</div>
+											<p className="text-sm text-[var(--muted)] leading-relaxed line-clamp-2 mt-2">
+												{company.description}
+											</p>
+											{company.technologies?.length > 0 && (
+												<div className="flex flex-wrap gap-1.5 mt-3">
+													{company.technologies.slice(0, 5).map((t) => (
+														<span
+															key={t}
+															className="text-xs px-2 py-0.5 rounded-md"
+															style={{
+																background: "var(--cream-2)",
+																color: "var(--muted)",
+																border: "1px solid var(--border)",
+															}}
+														>
+															{t}
+														</span>
+													))}
+												</div>
+											)}
+										</div>
+										<ChevronRight className="w-4 h-4 text-[var(--border)] group-hover:text-[var(--brown-1)] transition-colors shrink-0 mt-1" />
+									</div>
+								</button>
+							))}
+						</div>
+					)}
+				</div>
+			</main>
+
+			{/* Sign-in modal */}
+			{showSignInModal && (
+				<div
+					className="fixed inset-0 z-50 flex items-center justify-center p-4"
+					style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+					onClick={() => setShowSignInModal(false)}
+				>
+					<div
+						className="surface p-8 max-w-sm w-full text-center"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<div
+							className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+							style={{
+								background: "var(--cream-2)",
+								border: "1px solid var(--border)",
+							}}
+						>
+							<LogIn className="w-5 h-5 text-[var(--brown-1)]" />
+						</div>
+						<h2 className="text-lg font-semibold text-[var(--brown-3)] mb-2">
+							Sign in to search
+						</h2>
+						<p className="text-sm text-[var(--muted)] mb-6 leading-relaxed">
+							Sign in with Google to search startups and generate outreach
+							messages.
+							<strong> 2 searches per day</strong>, free forever.
+						</p>
+						<button
+							onClick={() => signIn("google")}
+							className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+						>
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+								<path
+									d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+									fill="#4285F4"
+								/>
+								<path
+									d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+									fill="#34A853"
+								/>
+								<path
+									d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+									fill="#FBBC05"
+								/>
+								<path
+									d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+									fill="#EA4335"
+								/>
+							</svg>
+							Continue with Google
+						</button>
+						<button
+							onClick={() => setShowSignInModal(false)}
+							className="btn-ghost w-full mt-3 text-sm"
+						>
+							Maybe later
+						</button>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}

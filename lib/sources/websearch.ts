@@ -254,7 +254,7 @@ export async function searchLinkedInEmployees(
 		const linkRegex =
 			/href="(https?:\/\/(?:www\.)?linkedin\.com\/in\/[^"?&]+)/g;
 		const titleRegex = /<a[^>]+class="result__a"[^>]*>([^<]+)<\/a>/g;
-		const snippetRegex = /<a[^>]+class="result__snippet"[^>]*>([^<]+)<\/a>/gs;
+		const snippetRegex = /<a[^>]+class="result__snippet"[^>]*>([\s\S]+?)<\/a>/g;
 
 		const links: string[] = [];
 		const titles: string[] = [];

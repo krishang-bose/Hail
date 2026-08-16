@@ -56,19 +56,31 @@ export async function findGitHubProfile(
 	// Search: "John Smith stripe" → returns user list
 	const companyKeyword = companyDomain ? companyDomain.split(".")[0] : "";
 	const q = encodeURIComponent(`${personName} ${companyKeyword}`.trim());
+	type GHSearchResult = { items: { login: string }[] };
 	const search = await ghFetch(
 		`https://api.github.com/search/users?q=${q}&per_page=3`,
-	);
+	) as GHSearchResult | null;
 	if (!search?.items?.length) return null;
 
 	const login = search.items[0].login;
 
-	// Fetch full profile + repos in parallel
+	type GHRepo = {
+		fork: boolean;
+		language: string | null;
+		stargazers_count: number;
+		name: string;
+		description: string | null;
+	};
 	const [profile, repos] = await Promise.all([
-		ghFetch(`https://api.github.com/users/${login}`),
+		ghFetch(`https://api.github.com/users/${login}`) as Promise<{
+			bio: string | null;
+			location: string | null;
+			blog: string | null;
+			followers: number;
+		} | null>,
 		ghFetch(
 			`https://api.github.com/users/${login}/repos?sort=updated&per_page=12&type=public`,
-		),
+		) as Promise<GHRepo[] | null>,
 	]);
 
 	if (!profile) return null;
@@ -186,7 +198,7 @@ export async function searchGitHubOrg(
 
 	// 1. Try direct slug variations first (fast, no rate limit cost)
 	for (const slug of slugs) {
-		const org = await ghFetch(`https://api.github.com/orgs/${slug}`);
+		const org = await ghFetch(`https://api.github.com/orgs/${slug}`) as { login?: string } | null;
 		if (org?.login) {
 			orgLogin = org.login;
 			console.log(`[GitHub] Found org "${orgLogin}" (slug: "${slug}")`);
