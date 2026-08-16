@@ -8,21 +8,35 @@
 // - Nobody else is doing this level of research
 
 export interface PHProduct {
-  name: string;
-  tagline: string;
-  votesCount: number;
-  topics: string[];
-  url: string;
-  launchedAt: string; // ISO date
+	name: string;
+	tagline: string;
+	votesCount: number;
+	topics: string[];
+	url: string;
+	launchedAt: string; // ISO date
 }
 
-const PH_API = 'https://api.producthunt.com/v2/api/graphql';
+type PHTopicEdge = { node: { name: string } };
+type PHEdge = {
+	node: {
+		name: string;
+		tagline: string;
+		votesCount: number;
+		url: string;
+		createdAt: string;
+		topics?: { edges: PHTopicEdge[] };
+	};
+};
 
-export async function findPHProducts(companyName: string): Promise<PHProduct[]> {
-  const token = process.env.PRODUCT_HUNT_TOKEN;
-  if (!token) return [];
+const PH_API = "https://api.producthunt.com/v2/api/graphql";
 
-  const query = `
+export async function findPHProducts(
+	companyName: string,
+): Promise<PHProduct[]> {
+	const token = process.env.PRODUCT_HUNT_TOKEN;
+	if (!token) return [];
+
+	const query = `
     query SearchPosts($query: String!) {
       posts(search: { query: $query }, first: 5, order: VOTES) {
         edges {
@@ -43,36 +57,36 @@ export async function findPHProducts(companyName: string): Promise<PHProduct[]> 
     }
   `;
 
-  try {
-    const res = await fetch(PH_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({ query, variables: { query: companyName } }),
-      next: { revalidate: 86400 }, // cache 24hr — launches don't change often
-    });
+	try {
+		const res = await fetch(PH_API, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${token}`,
+				Accept: "application/json",
+			},
+			body: JSON.stringify({ query, variables: { query: companyName } }),
+			next: { revalidate: 86400 }, // cache 24hr — launches don't change often
+		});
 
-    if (!res.ok) {
-      console.warn(`[PH] HTTP ${res.status}`);
-      return [];
-    }
+		if (!res.ok) {
+			console.warn(`[PH] HTTP ${res.status}`);
+			return [];
+		}
 
-    const json = await res.json();
-    const edges = json?.data?.posts?.edges ?? [];
+		const json = await res.json();
+		const edges: PHEdge[] = json?.data?.posts?.edges ?? [];
 
-    return edges.map((e: any) => ({
-      name:       e.node.name,
-      tagline:    e.node.tagline,
-      votesCount: e.node.votesCount,
-      url:        e.node.url,
-      launchedAt: e.node.createdAt,
-      topics:     (e.node.topics?.edges ?? []).map((t: any) => t.node.name),
-    }));
-  } catch (err) {
-    console.warn('[PH] Error:', err);
-    return [];
-  }
+		return edges.map((e) => ({
+			name: e.node.name,
+			tagline: e.node.tagline,
+			votesCount: e.node.votesCount,
+			url: e.node.url,
+			launchedAt: e.node.createdAt,
+			topics: (e.node.topics?.edges ?? []).map((t) => t.node.name),
+		}));
+	} catch (err) {
+		console.warn("[PH] Error:", err);
+		return [];
+	}
 }

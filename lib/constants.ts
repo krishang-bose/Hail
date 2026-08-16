@@ -7,7 +7,7 @@ export const DAILY_LIMIT = 2;
  * Set NEXT_PUBLIC_AUTH_ENABLED=false in .env.local to disable locally.
  * On Vercel, leave unset (defaults true) or set NEXT_PUBLIC_AUTH_ENABLED=true.
  */
-export const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED !== 'false';
+export const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED !== "false";
 
 /**
  * Returns true if the given email belongs to an admin.
@@ -16,10 +16,10 @@ export const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED !== 'false';
  *   ADMIN_EMAILS=bosekrishang@gmail.com
  */
 export function isAdmin(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const admins = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-  return admins.includes(email.toLowerCase());
+	if (!email) return false;
+	const admins = (process.env.ADMIN_EMAILS ?? "")
+		.split(",")
+		.map((e) => e.trim().toLowerCase())
+		.filter(Boolean);
+	return admins.includes(email.toLowerCase());
 }
