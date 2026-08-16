@@ -111,7 +111,9 @@ export default function AuthButton({ usedCalls }: AuthButtonProps) {
 					<Image
 						src={session.user.image}
 						alt={session.user.name ?? "User"}
-						className="w-6 h-6 rounded-full object-cover shrink-0"
+						width={24}
+						height={24}
+						className="rounded-full object-cover shrink-0"
 					/>
 				) : (
 					<div

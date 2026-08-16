@@ -52,7 +52,7 @@ function CompanyLogo({
 	if (src) {
 		return (
 			<div
-				className={`flex items-center justify-center overflow-hidden ${className ?? ""}`}
+				className={`relative flex items-center justify-center overflow-hidden ${className ?? ""}`}
 				style={{
 					background: "var(--surface)",
 					border: "1px solid var(--border)",
@@ -61,7 +61,9 @@ function CompanyLogo({
 				<Image
 					src={src}
 					alt={`${name} logo`}
-					className="w-full h-full object-contain p-2"
+					fill
+					sizes="128px"
+					className="object-contain p-2"
 					onError={() => {
 						if (src === logoUrl && website) {
 							try {
